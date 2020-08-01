@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@types/react-helmet": "^6.0.0",
+    "gh-pages": "^3.1.0",
     "prettier": "2.0.5",
     "typescript": "^3.9.7"
   },
@@ -41,7 +42,8 @@
     "serve": "gatsby serve",
     "clean": "gatsby clean",
     "test": "echo \"Write tests! -> https://gatsby.dev/unit-testing\" && exit 1",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "npm run typecheck && gatsby build --prefix-paths && gh-pages -d public"
   },
   "repository": {
     "type": "git",

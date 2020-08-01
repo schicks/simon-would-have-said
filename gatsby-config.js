@@ -4,6 +4,7 @@ module.exports = {
     description: `Proof of Spare Time`,
     author: `Sam Schick`,
   },
+  pathPrefix: "/simon-would-have-said",
   plugins: [
     `gatsby-plugin-react-helmet`,
     {

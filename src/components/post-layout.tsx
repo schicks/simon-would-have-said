@@ -5,25 +5,31 @@
  * See: https://www.gatsbyjs.org/docs/use-static-query/
  */
 
-import React from "react"
+import React from "react";
 
-import Header from "./header"
-import "./layout.css"
-import useSiteTitle from "../hooks/useSiteTitle"
-import SEO from './seo'
+import Header from "./header";
+import "./layout.css";
+import useSiteTitle from "../hooks/useSiteTitle";
+import SEO from "./seo";
+import "katex/dist/katex.min.css";
 
 type Props = {
-  children: React.ReactNode
+  children: React.ReactNode;
   pageContext: {
     frontmatter: {
-      title: string,
-      date: string
-    }
-  }
-}
+      title: string;
+      date: string;
+    };
+  };
+};
 
-const Layout: React.FC<Props> = ({ children, pageContext: { frontmatter: { title } } }) => {
-  const siteTitle = useSiteTitle()
+const Layout: React.FC<Props> = ({
+  children,
+  pageContext: {
+    frontmatter: { title },
+  },
+}) => {
+  const siteTitle = useSiteTitle();
 
   return (
     <>
@@ -47,7 +53,7 @@ const Layout: React.FC<Props> = ({ children, pageContext: { frontmatter: { title
         </footer>
       </div>
     </>
-  )
-}
+  );
+};
 
-export default Layout
+export default Layout;
