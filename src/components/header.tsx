@@ -1,15 +1,21 @@
-import { Link } from "gatsby"
-import React from "react"
+import { Link } from "gatsby";
+import React from "react";
 
 type Props = {
-  siteTitle?: string
-}
+  siteTitle?: string;
+};
 
 const Header: React.FC<Props> = ({ siteTitle }: Props) => (
   <header
     style={{
-      background: `rebeccapurple`,
       marginBottom: `1.45rem`,
+      borderBottom: "6px solid black",
+      position: "fixed",
+      top: 0,
+      width: "100vw",
+      background: "white",
+      zIndex: 111,
+      height: "90px",
     }}
   >
     <div
@@ -23,7 +29,7 @@ const Header: React.FC<Props> = ({ siteTitle }: Props) => (
         <Link
           to="/"
           style={{
-            color: `white`,
+            color: "black",
             textDecoration: `none`,
           }}
         >
@@ -32,6 +38,6 @@ const Header: React.FC<Props> = ({ siteTitle }: Props) => (
       </h1>
     </div>
   </header>
-)
+);
 
-export default Header
+export default Header;
