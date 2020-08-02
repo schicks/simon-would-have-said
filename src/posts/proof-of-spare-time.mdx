@@ -12,11 +12,11 @@ Pluralsight has a weekly "Architecture Guild" meeting to discuss anything and ev
 | Thing to Discuss | Ruth     | Why it's important      | 3          | SS  | CB  | RG  |
 | Unpopular Thing  | Chuck    | It's not that important | 1          | CB  | --  | --  |
 
-The structure was a row for each topic, which would have a title, a proposer and a description, a computed column that would display the current number of votes, and then the remaining 48 columns would be left for people to vote in by placing their initials in a square. It's a little confusing when first introduced, but it works very smoothly once everyone is used to it, and it requires no extra effort or infrastructure.
+The structure is a row for each topic, which would have a title, a proposer and a description, a computed column that displays the current number of votes, and then the remaining 48 columns are be left for people to vote in by placing their initials in a square. It's a little confusing when first introduced, but it works very smoothly once everyone is used to it, and it requires no extra effort or infrastructure.
 
 The problem with this pattern is that it doesn't scale well. When we all started working fully remotely, the number of meeting participants quickly doubled. Even though not everybody voted, google sheets started locking up when it came time to enter votes. Even in a magical world where google sheets is perfectly responsive, there's a [Birthday Problem](https://en.wikipedia.org/wiki/Birthday_problem) hiding in here. When there are only three or four topics, the odds that people are going to try and cast their votes in the same cell are fairly high.
 
-Building a lean coffee tool for Pluralsight didn't seem like a good idea. Let us count the ways;
+Building a lean coffee tool for Pluralsight doesn't seem like a good idea. Let us count the ways;
 
 - There are probably already tools we could buy that would do the job better
 - There are probably tools that we already pay for that could solve the immediate problem
@@ -27,19 +27,21 @@ Having considered all that, I decided to build a lean coffee tool anyway. Just p
 
 The part of this that got me excited was the database. I've been reading too much about block chains for my own good, and was all excited about the idea of having a distributed database that would just run in the users browser.
 
-Not wanting to put the cart before the horse, I figured I would start with building the react UI for my coffee table. The lean coffee board (at Pluralsight, at least) is built up of three sections where people can propose topics of various forms and everyone can vote on those topics. So first step would be to put together a voting section.
+The lean coffee board (at Pluralsight, at least) is built up of three sections where people can propose topics of various forms and everyone can vote on those topics. So first step would be to put together a voting section to get a sense of how the state is going to work.
 
 <VotingSection title={"Discussion Topics"} user={"Sam Schick"} />
 
+This component has a nice, clean, reducer based state. We have four actions: `Add`, `Remove`, `Upvote`, and `Downvote`. The transition to the next state from each of these is always obvious. Next was to allow users to change their local state in a way that everyone still eventually sees the same global state.
+
 ### Distributed State
 
-With this skeleton component built, it's starting to be clear how our distributed state model might work. There is a concept in distributed computing of [State Machine Replication](https://en.wikipedia.org/wiki/State_machine_replication). The idea is that if we can get all of our different distributed nodes to agree on a sequence of actions against a known state machine, the state that produces must be the same, so we can all compute the state independently. To those of us who learned React before we learned distributed computing, this should sound familiar. The reducer state pattern uses this same principle; given a sequence of actions and a reducing function (which turns out to just be a very simple state machine) we can be sure that we'll always end up at the same state. So then our approach looks something like this;
+There is a concept in distributed computing of [State Machine Replication](https://en.wikipedia.org/wiki/State_machine_replication). The idea is that if we can get all of our different distributed nodes to agree on a sequence of actions against a known state machine, the state that produces must be the same, so we can all compute the state independently. To those of us who learned React before we learned distributed computing, this should sound familiar. The reducer state pattern uses this same principle; given a sequence of actions and a reducing function (which turns out to just be a very simple state machine) we can be sure that we'll always end up at the same state. So then our approach looks something like this;
 
 1. Build all state that needs to be shared into a central reducer state
 2. Magically get all nodes to agree on a sequence of actions against that state
 3. Profit!
 
-Alright, so maybe I hadn't thought through step two all the way. It turns out that we have to build up this agreement part somehow. What we actually have as a primitive is [Asynchronous Message Passing](https://en.wikipedia.org/wiki/Message_passing). We can send messages to other users, but they have a few unfortunate properties;
+Alright, so maybe I hadn't thought through step two all the way. It turns out that we have to build up this agreement part somehow. What we have as a primitive is [Asynchronous Message Passing](https://en.wikipedia.org/wiki/Message_passing). We can send messages to other users, but they have a few unfortunate properties.
 
 - Messages can be repeated an arbitrary number of times
 - Messages can take an arbitrary amount of time to arrive
@@ -47,27 +49,31 @@ Alright, so maybe I hadn't thought through step two all the way. It turns out th
 
 ### Options for Consensus
 
-There are a few ways that people solve this. There is a consensus algorithm called [Raft](http://thesecretlivesofdata.com/raft/) that is the most common approach when we have some external security layer so that we can trust all the actors in the system. There's another one, called [Istanbul Bizantine Fault Tolerant Consensus](https://docs.goquorum.com/en/latest/Consensus/ibft/ibft/) or IBFT, that removes some of the trust requirements. Unfortunately, both of these require that you have some mechanism for knowing how many people are in the system. You can fudge this a little, but fundamentally both of these are based around voting. Actions are considered valid when a quorum of the actors in the system have approved those actions. This makes it hard to have a very large, very dynamic group. In our case, it's entirely possible that I'm the only one online at a given time, and I still want to be able to save actions.
+There are a few ways that people solve this. There is a consensus algorithm called [Raft](http://thesecretlivesofdata.com/raft/) that is the most common approach when we have some external security layer so that we can trust all the actors in the system. There's another one, called [Istanbul Bizantine Fault Tolerant Consensus](https://docs.goquorum.com/en/latest/Consensus/ibft/ibft/) or IBFT, that removes some of the trust requirements. Unfortunately, both of these require that you have some mechanism for knowing how many people are in the system. You can fudge this a little, but fundamentally both of these are based around voting. Actions are considered valid when a quorum of the actors in the system have approved those actions. This makes it hard to have a large, dynamic group. In our case, it's possible that I'm the only one online at a given time. When that happens I still want to be able to save actions.
 
 Of course, there is another way. A way that can scale to an arbitrary number of people. A way that is completely secure, with no central authority. That way is...
 
 ![BLOCKCHAIN!!!!](../images/blockchain.jpg)
 
-I didn't use blockchain.
+I'm not using blockchain.
 
-I don't think we need to bake the planet with proof of work to sync up some UI state for my coffee table. I was convinced there was a better way. I was also pretty sure there was a cheaper way. All we should need external actors for here is for making the handshake between the various participants browsers. Everything else should be able to happen there.
+I don't think we need to bake the planet with proof of work to sync up some UI state for my coffee table. I am convinced there is a better way. I am also pretty sure there is a cheaper way. All we should need external actors for here is for making the handshake between the participants.
 
 ### Relaxing the Requirements
 
-I needed to find a way to make this problem a little easier. It's not hard to figure out how this would work locally. Our problem was that when we go to distribute the state, it gets hard to guarantee that everyone will see actions occur in the same order. We can't have everyone vote on what order they see, because we don't know how many people are participating, so we can't know for sure how many people would make a quorum. So instead, we need to focus on the ordering requirement itself.
+We need a way to make this problem a little easier. It's not hard to figure out how this could work locally. Our problem is that when we go to distribute the state, it gets hard to guarantee that everyone will see actions occur in the same order. We can't have everyone vote on what order they see. We don't know how many people are participating, so we can't know for sure how many people would make a quorum.
 
-It doesn't matter what order people propose topics in. We can just show them on the screen in alphabetical order, or in order of how many votes they have; it's not too important. What if we tried to make that a requirement of all of the sorts of actions we could take? Actions would specify a "parent"; some action that they follow from. This would give us a dependency tree of actions. Then to guarantee that we acknowledge every action, but always end up in the same state given the same _set_ of actions rather than the same _sequence_ of actions, we need the following consistency rule:
+- We need to allow people to join without it changing the consensus process.
+- We need to have everyone converge on the same state.
+- **We don't necessarily need everyone to get there the same way.**
 
-> Given a tree of actions and a partial order "$\leq$"" implied by that tree, any reduction order in which $a \leq b \implies a $ will be processed before $b$ will result in the same state.
+It doesn't matter what order people propose topics in. If the only action were to propose a topic, the order wouldn't matter at all as long as everyone eventually saw every action. What if we tried to make that a requirement of all of the actions we could take? Actions would specify a "parent"; some action that they follow from. This would give us a dependency tree of actions. Then to guarantee that we acknowledge every action, but always end up in the same state given the same _tree_ of actions rather than the same _sequence_ of actions, we need the following consistency rule:
 
-As long as we design our actions and our reducer so that this rule holds, we don't need a sequence, just a tree. It is much easier to see how we would build a tree of actions using message passing than how we would build a sequence. If we pass around messages with actions that mention their parent, and allow some special actions that serve as requests for information from other participants, then we can get the following guarantees;
+> Given a tree of actions $T$ and a partial order "$\leq_T$" implied by that tree, any reduction order $R$ in which $a \leq_T b \implies a <_R b$ will result in the same state.
 
-- Any action which is included in the local state at time $T$ will be included in the local state at any time after $T$
+As long as we design our actions and our reducer so that this rule holds, we don't need a sequence, just a tree. It is much easier to see how we would build a tree of actions using message passing than how we would build a sequence. If we pass around messages with actions that mention their parent, and allow some special actions that serve as requests for information from other participants, we get the following guarantees.
+
+- Any action which is included in the local state at time $t$ will be included in the local state at any time after $t$
 - If nodes periodically ask for information from their peers, all actions will eventually be present in every local state
 
 These guarantees are not enough to build a bank out of, but they are enough to build a coffee table.
