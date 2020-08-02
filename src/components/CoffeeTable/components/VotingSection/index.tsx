@@ -1,5 +1,13 @@
 import * as React from "react";
 import useVotingState from "./state";
+import {css} from '@emotion/core'
+
+const styles = css`
+  border: 3px solid black;
+  padding: 5px 10px;
+  border-radius: 2px;
+  margin-bottom: 10px;
+`
 
 type Props =
   | {
@@ -28,7 +36,7 @@ export default (props: Props) => {
 
   const [newTopicText, setNewTopicText] = React.useState("");
   return (
-    <section>
+    <section css={styles}>
       <h3>{title}</h3>
       <table>
         <thead>

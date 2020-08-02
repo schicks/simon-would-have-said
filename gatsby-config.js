@@ -18,6 +18,7 @@ module.exports = {
     `gatsby-plugin-sharp`,
     "gatsby-remark-images",
     "gatsby-remark-katex",
+    "gatsby-plugin-emotion",
     {
       resolve: `gatsby-plugin-manifest`,
       options: {
@@ -47,8 +48,8 @@ module.exports = {
       resolve: "gatsby-plugin-mdx",
       options: {
         defaultLayouts: {
-          default: require.resolve("./src/components/layout.tsx"),
-          posts: require.resolve("./src/components/post-layout.tsx"),
+          default: require.resolve("./src/components/layout/index.tsx"),
+          posts: require.resolve("./src/components/layout/post-layout.tsx"),
         },
         gatsbyRemarkPlugins: [
           {
@@ -56,6 +57,9 @@ module.exports = {
           },
           {
             resolve: "gatsby-remark-katex",
+          },
+          {
+            resolve: "gatsby-remark-prismjs",
           },
         ],
       },

@@ -7,13 +7,21 @@
 
 import React from "react";
 
-import Header from "./header";
+import Header from "../header";
 import "./layout.css";
-import useSiteTitle from "../hooks/useSiteTitle";
+import useSiteTitle from "../../hooks/useSiteTitle";
+import PostLayout from "./post-layout";
+import { css } from "@emotion/core";
 
 type Props = {
   children: React.ReactNode;
 };
+
+const styles = css`
+  margin: 1.45rem auto 0 auto;
+  max-width: 800px;
+  padding: 0 1.0875rem 1.45rem;
+`;
 
 const Layout: React.FC<Props> = ({ children }) => {
   const siteTitle = useSiteTitle();
@@ -21,13 +29,7 @@ const Layout: React.FC<Props> = ({ children }) => {
   return (
     <>
       <Header siteTitle={siteTitle} />
-      <div
-        style={{
-          margin: `100px auto 0 auto`,
-          maxWidth: 900,
-          padding: `0 1.0875rem 1.45rem`,
-        }}
-      >
+      <div css={styles}>
         <main>{children}</main>
         <footer>
           © {new Date().getFullYear()}, Built with
@@ -40,3 +42,4 @@ const Layout: React.FC<Props> = ({ children }) => {
 };
 
 export default Layout;
+export { PostLayout };

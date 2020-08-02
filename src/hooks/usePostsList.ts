@@ -20,11 +20,13 @@ type Post = {
     title: string,
     date: Date,
     slug: string
+    status: 'draft' | 'published'
 }
 
-const formatPostData = ({ node: { slug, frontmatter: { title, date } } }: PostDTO): Post => ({
+const formatPostData = ({ node: { slug, frontmatter: { title, date, status } } }: PostDTO): Post => ({
     slug,
     title,
+    status,
     date: new Date(date)
 })
 
@@ -38,6 +40,7 @@ export default (): Post[] => {
             frontmatter {
               title
               date
+              status
             }
           }
         }

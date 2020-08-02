@@ -7,11 +7,24 @@
 
 import React from "react";
 
-import Header from "./header";
+import Header from "../header";
 import "./layout.css";
-import useSiteTitle from "../hooks/useSiteTitle";
-import SEO from "./seo";
+import useSiteTitle from "../../hooks/useSiteTitle";
+import SEO from "../seo";
 import "katex/dist/katex.min.css";
+import "prismjs/themes/prism-okaidia.css";
+import { css } from "@emotion/core";
+
+const styles = css`
+  margin: 1.45rem auto 0 auto;
+  max-width: 800px;
+  padding: 0 1.0875rem 1.45rem;
+  code.language-text {
+    background: white;
+    color: black;
+    text-shadow: none;
+  }
+`;
 
 type Props = {
   children: React.ReactNode;
@@ -35,13 +48,7 @@ const Layout: React.FC<Props> = ({
     <>
       <SEO title={title} />
       <Header siteTitle={siteTitle} />
-      <div
-        style={{
-          margin: `100px auto 0 auto`,
-          maxWidth: 900,
-          padding: `0 1.0875rem 1.45rem`,
-        }}
-      >
+      <div css={styles}>
         <main>
           <h2>{title}</h2>
           {children}
