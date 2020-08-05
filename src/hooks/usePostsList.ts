@@ -6,7 +6,8 @@ type PostDTO = {
         slug: string,
         frontmatter: {
             title: string,
-            date: string
+            date: string,
+            status: 'draft' | 'published'
         }
     }
 }

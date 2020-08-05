@@ -1,65 +1,128 @@
 ---
 title: "Proof of Spare Time: Designing Actions"
 date: 2020-08-02 10:58:02
-status: draft
+status: published
 ---
 
-- [Introductory Post](proof-of-spare-time)
+import POSTPosts from "../components/POSTposts";
+
+<POSTPosts slug={"proof-of-spare-time-designing-actions"} onlyPublished />
 
 In the last post I introduced a consistency rule as a desirable property for distributed reducers.
 
 > Given a tree of actions $T$ and a partial order "$\leq_T$" implied by that tree, any reduction order $R$ in which $a \leq_T b \implies a <_R b$ will result in the same state.
 
-To see how we can build actions to satisfy this rule, lets look at a simplified state for the coffee table voting section.
+This guarantees that everyone will end up in the same state after all actions are applied. When we structure our action history as a tree, each action $A$ either contains some reference to a parent $P$, or is assumed to have the root of the tree (the default state) as a parent. The consistency rule requires that actions can be arbitrarily reordered when being fed to the reducer, as long as we always run $P$ before we run $A$.
+
+What we need to design actions that satisfy this rule is to determine when reordering actions would definitely be ok. The simplest example of this is the reducer that simply returns the whole tree after applying an action. When we go to apply an action $A$, as long as it's parent is already in the tree there will be an obvious place to add $A$ to the tree.
+
+### Some Free Lunch
+
+The tree of actions as a state satisfies our consistency rule for free. That may not sound useful, but in many cases what you want as a state is close to the tree of actions itself. 
+
+Reddit is a great example of this. Each post does not depend in any way on any other post. The parent of any post is the root. Each comment either has a post or another comment as a parent. If our only action is `addComment` reddit satisfies our consistency rule for free. Our lean coffee table has a similar structure, which is discussion topics. Because discussion topics can't conflict in any way, `addTopic` satisfies our rule for free.
+
+To figure out how we would handle voting, it helps to think through how we might do this on paper. We want to get as many people as possible to support our petition. We don't have to have only one copy of the petition that we hand around whenever someone wants to sign it; we can have many copies of the petition, and signing a copy is enough because later, when we add up all the signatures, if some very odd person was going around signing the petition over and over again we could just deduplicate all of their signatures.
+
+When we write this structure out as a type, it becomes easier to see how this translate to code.
 
 ```typescript
-type SignedTopic = {
-  topic: Topic
-  proposer: Signature<Topic>
+type Petition = {
   votes: {
-    [personId in string]?: Vote
+    [voterId: string]: Signature<Vote>
   }
-}
-type State = {
-  [id in string]?: Topic
+  /* Some other properties */
 }
 
-// these are less important to the consistency rule, but for clarity are provided
-type Topic = {
-  title: string
-  description: string
-  id: string
-  date: Date
-}
-type Signature<T> = ArrayBuffer & {_type: 'signature' _signed: T}
 
 type Person = {
-  id: string
-  sign: <T>(t: T) => Signature<T>
-  validate<T>(s: Signature<T>) => boolean
+  id: PublicKey
+  validate<T>(s: Signature<T>, id: PublicKey) => boolean
 }
 
-type Vote = Signature<[Topic, Date]>
+type Self = Person & {
+  sign: <T>(t: T) => Signature<T>
+}
+
+type PublicKey = string & {_type: 'publicKey'}
+
+type Signature<T> = ArrayBuffer & {_type: 'signature' _signed: T}>
 ```
 
-To add a new topic, we just add a new key to the state that maps to that topic. What order we do that in doesn't matter. we'll always end up in the same state once we've applied all the actions.
+_This example uses a typescript trick called [branding](https://medium.com/better-programming/nominal-typescript-eee36e9432d2). This allows us to get some of the benefits of nominal types in typescript. If it's not something you've seen before, don't worry about it too much, and just ignore everything in the `PublicKey` and `Signature` types that comes after an intersection (&)._
 
-The structure of the votes may seem strange. We remember the full structure of every vote within the state, rather than just remembering the count. This is to allow us to fulfill our consistency rule for the `upvote` and `downvote` actions. If we only remembered the count, it would be hard to know when a user was allowed to vote on a topic. Remembering the whole vote allows us to fully handle new voting actions. 
+When we get a new `vote` action, we add a key with that voter id to the `votes` object. Then when we want to count up how many votes we received we count how many keys the vote object has. Actions can't conflict, they can just be duplicated, and we can dedup actions as we apply them to the tree.
 
-When a new vote comes in, and there is already a vote in that slot, we can decide which one to pick based on the date embedded in the vote type. Dates are usually not a safe thing to rely on in a distributed system, but in this case we know that all dates must have been generated by the same user, because they are signed. We can also make sure that no one else can vote for that user by validating the signature.
+Changing our votes can be similarly free. We can have an `unvote` action that must have as a parent a `vote` action. This guarantees that when that `unvote` action is processed, there is already a vote in the tree to remove.
 
-This structure of state would implement a version of voting called [approval voting](https://en.wikipedia.org/wiki/Approval_voting). Approval voting is most common on social media sites. likes on facebook and hearts on twitter are both approval votes, because we can only vote +1 and we can vote for as many items as we want. This is unusual for lean coffee. The more common structure is to give each participant $n$ votes to distribute among the topics however they see fit. Lean coffee calls this *dot voting*.
+This doesn't quite get us to reddit style voting, or to lean coffee voting. There are other things we might want to be able to do.
 
-Now that we have the simplest structure of voting defined, it's not hard to see how we would extend this state to handle dot votes. We can simply change our vote type as follows;
+- Vote up and also down
+- Have $n$ votes to divide between topics as we see fit
+
+These things don't come for free. To get things like this we need to build some conflict resolution into our reducer.
+
+### Conflict Resolution
+
+If we want to be able to vote against something as well as for it, we need some way to handle the situation where someone first cast a vote down, then a vote up. The goal here is to make some rule that would be part of our reducer function that handles such conflicts, and the trick is going to be embedded in the `Vote` type.
+
+In our types above, we reference the `Vote` type but we don't define what it is. We can have that type carry information that we use to do conflict resolution. For example, if our user is likely to be only using one device at a time, we might use a timestamp to determine which vote action we should honor.
 
 ```typescript
-type Vote = Signature<[Topic, Date, number]>
+type Vote = {
+  when: Date;
+  direction: "up" | "down";
+};
 ```
 
-The intuition here is that each of the participants $n$ votes gets a number between 1 and $n$. When they cast a new vote, the reducer checks if that number has already been cast in the state. If not, all is well. If it has already been cast (or if an additional cast action gets added later) then we can make up some rule for determining what happens in a consistent way. We have a few options of how this could work.
+Timestamps have drawbacks, but in many cases can be good enough as long as in the worst case, accepting the wrong action would not be catastrophic. In this case, accepting the wrong action might mean the user voted down instead of up. They'll live.
 
-* Votes are cast without a number associated with them. Numbers are assigned according to timestamps, and roll over when we run out of votes.
-* Votes are cast with a number associated with them. The most recent vote for a given number wins.
-* Votes are cast with a number associated with them. There is an additional action to explicitly "uncast" a vote.
+### Derived or Nonlocal State
 
-The user experience of each of these is going to depend on how good our network turns out to be. I prefer the final version, because it is the least likely to have "surprising" intermediate states. All of them will never show more votes cast than is possible. They will also never show a vote cast for something that the participant did not vote for. However, thinking about all of the votes together as a set, each of these could temporarily show remote users a state that never occurred for the participant casting the votes. Our consistency rule only guarantees that once all actions have been distributed, everyone will be in the same state.
+Allowing the user to arbitrarily distribute $n$ votes is harder. In the above example we basically just give a way to _entirely overwrite_ an action. When distributing a set number of votes, we have an invariant that goes between many actions. To maintain that invariant we need to restrict the actions in some way, and that means making some decisions about the user experience.
+
+We could design actions such that the timestamp is still the only thing that matters.
+
+```typescript
+type Vote = Date;
+```
+
+There are a few ways to handle actions like this.
+
+- When the vote limit is hit, the reducer finds and removes the oldest vote when applying the most recent one.
+- When the vote limit is hit, new vote actions are remembered but ignored until an unvote action removes an older vote.
+
+In the second case, we'd need to extend the state with some sort of holding area for votes that could not be applied when they were received. That will allow us to process those votes correctly when an unvote action eventually makes them valid.
+
+Neither of these would provide great user experiences on their own. The first would remove votes from topics in a way that might not make sense to the user. The second could also be very confusing, with actions from a long time ago getting applied suddenly when the user removes an existing vote. To help mitigate this it might be worth maintaining some local, non distributed state to set up guardrails against the user doing things that would feel unintuitive.
+
+### General Principles
+
+We've walked through how to handle the particular actions we'll need for the lean coffee table, but it's worth reflecting on these and trying to extract some general principles.
+
+When we can construct actions that add something immutable to the state, like discussion topics or reddit comments or simple approval voting, they will satisfy our consistency rule for free.
+
+When we need actions that can't be structured that way, we need build conflict resolution into our reducer. This might involve extending the state with a space to remember actions which have no visible effect right away, because an action might appear later that makes them relevant again.
+
+Nonlocal state can often appear confusing or unintuitive to users. It is worth avoiding if possible. If it is absolutely necessary, setting up guardrails to keep users away from the weirdest corners of our conflict resolution might help the user experience.
+
+### Eventual Consistency Means Occasional Dragons
+
+Our consistency rule guarantees that as long as we have a conflict resolution strategy, once every action is applied we will have a consistent state. However, it doesn't say anything about what states users might see before every action is applied. Imagine if we have topics A, B, and C, and the following sequence of actions;
+
+- Sam votes for A
+- Sam votes for C
+- Sam unvotes for A
+- Sam votes for B
+
+At the end of all actions, I will have a vote for B and a vote for C, but before all actions are applied, users could see a variety of states that never actually occurred.
+
+- Sam voted for all three topics
+- Sam only voted for B
+- Sam voted for A and B but not C
+
+Deciding to build an eventually consistent system means accepting that this behavior is acceptable for our use case.
+
+### Other Posts in This Series
+
+<POSTPosts slug={"proof-of-spare-time-designing-actions"} />
