@@ -3,7 +3,8 @@ title: Better Pooled Coronavirus Testing
 date: 2020-08-26 10:57:30
 status: draft
 ---
-import {VegaLite} from 'react-vega'
+
+import { VegaLite } from "react-vega";
 
 We need to be doing more Coronavirus testing, but it is hard to scale up the number of tests we can run in a day. One way the CDC is recommending getting around this restriction is by [pooling tests](https://www.cdc.gov/coronavirus/2019-ncov/lab/pooling-procedures.html). This amounts to pooling samples from a few people together and running one test. This can drastically increase the number of people we can test with the same number of testing kits. However, in areas where the virus is too common it becomes ineffective because almost every pooled test comes back positive. We can improve on this test by utilizing some simple probabalistic techniques. These will allow us to get more information out of a collection of tests than we get out of each test individually.
 
@@ -11,154 +12,170 @@ We need to be doing more Coronavirus testing, but it is hard to scale up the num
 
 Pooled tests work by combining samples from a small pool of people and running a single test kit against the combined sample. This test kit should come back positive if any of the people in the pool are sick.
 
-* Pooled tests cover more people with the same number of tests
-* When a pooled test is negative, everyone in that pool is presumed negative
-* When a pooled test is positive, each person in the pool needs to be retested.
+- Pooled tests cover more people with the same number of tests
+- When a pooled test is negative, everyone in that pool is presumed negative
+- When a pooled test is positive, each person in the pool needs to be retested.
 
 When too many people in an area are sick, pooled tests come back positive so frequently that it is [no longer worthwhile](https://www.nytimes.com/2020/08/18/health/coronavirus-pool-testing.html), given the cost and risk of reaching out to people to get retested.
 
-<div style={{display: "flex", justifyContent: "center"}}>
-  <VegaLite spec={{
-    "description": "When more people in the population are sick, pooled tests come back positive far too frequently.",
-    "width": 400,
-    "height": 200,
-    "data": {"sequence": {
-      "start": 0,
-      "stop": 16.1,
-      "step": 0.1,
-      "as": "percent"
-    }},
-    "transform": [
-      {
-        "calculate": "[5,10,25]",
-        "as": "pool_size"
+<div style={{ display: "flex", justifyContent: "center" }}>
+  <VegaLite
+    spec={{
+      description:
+        "When more people in the population are sick, pooled tests come back positive far too frequently.",
+      width: 400,
+      height: 200,
+      data: {
+        sequence: {
+          start: 0,
+          stop: 16.1,
+          step: 0.1,
+          as: "percent",
+        },
       },
-      {
-        "flatten": ["pool_size"]
+      transform: [
+        {
+          calculate: "[5,10,25]",
+          as: "pool_size",
+        },
+        {
+          flatten: ["pool_size"],
+        },
+        {
+          calculate:
+            "100-pow((100-datum.percent)/100, datum.pool_size-1) * 100",
+          as: "ppr",
+        },
+      ],
+      mark: "line",
+      encoding: {
+        x: {
+          field: "percent",
+          type: "quantitative",
+          title: "Percentage of the Population with COVID",
+        },
+        y: {
+          title: "False Positive Rate",
+          field: "ppr",
+          type: "quantitative",
+        },
+        color: {
+          title: "Pool Size",
+          field: "pool_size",
+          type: "nominal",
+        },
       },
-      {
-        "calculate": "100-pow((100-datum.percent)/100, datum.pool_size-1) * 100",
-        "as": "ppr"
-      }
-    ],
-    "mark": "line",
-    "encoding": {
-      "x": {
-        "field": "percent",
-        "type": "quantitative",
-        "title": "Percentage of the Population with COVID"
-      },
-      "y": {
-        "title": "False Positive Rate",
-        "field": "ppr",
-        "type": "quantitative"
-      },
-      "color": {
-        "title": "Pool Size",
-        "field": "pool_size",
-        "type": "nominal"
-      }
-    }
-  }} />
+    }}
+  />
 </div>
 
 _For a given person who does not have COVID, this graph shows the odds that they would get a positive result in a pooled test._
 
 ### Motivation for Improvement
 
-We can do better than just mixing a bunch of samples into a single test. To start, imagine that one person out of a thousand were sick. In that case, we would only need ten test kits to figure out who it was. We would do this by getting a sample from each person, and labelling them with a number written out in [binary](https://en.wikipedia.org/wiki/Binary_number#Counting_in_binary):
+- A **batch** is the whole collection of tests and people we will examine at once.
+- A **pool** is the group of people whose sample was applied to a specific test.
+- A **test array** is the group of tests containing some of a given persons sample. A test array is considered positive if every test in the array is positive.
 
-1. $1$
-2. $10$
-3. $11$
-4. $100$
-5. $101$
+We can do better than just considering a single pooled test. To start, imagine that one person out of a thousand were sick. We would do this by getting a sample from each person, and labelling them with a number written out in [binary](https://en.wikipedia.org/wiki/Binary_number#Counting_in_binary):
 
-And so on. The sample numbered 1000 would be written in binary as $1111101000$, taking up ten digits. We would line up the ten test kits so that they matched up with digits of the sample labels, and add some of each sample to any test which matches up with a digit which is $1$ in the label. Then we'd run all the tests. The sick person would be whoever had some sample in all the positive tests.
+1. $0000000001$
+2. $0000000010$
+3. $0000000011$
+4. $0000000100$
+5. $0000000101$
 
-There is some weirdness here. For instance, a healthy person could have all of the tests containing their sample come back positive. The sample labeled $1$ would only be in one test because it would only have one digit which was $1$. That test would come back positive about half the time (whenever the sick person had an odd numbered label). And to deal with false positives and false negatives, it would be good if every sample went into about the same number of tests. But as long as each person had a distinct _collection_ of tests that their sample went into, we can gain information about each individual person even though each test we ran were on pools of people.
+And so on. The sample numbered 1000 would be written in binary as $1111101000$, taking up ten digits. We would line up the ten test kits so that they matched up with digits of the sample labels. Then we would go through all of the samples, and add a given sample to the pool for a test if the digit of the label for that position was 1. The sick person will have their entire test array come back positive.
 
-This is important, because the number of ways to pick a subset of items from a set goes up way faster than the size of the set. Imagine a card game where you draw a hand of five cards. Even though there are only $52$ cards there are $2,598,960$ distinct hands that you might draw.
+There is some weirdness here. For instance, a healthy person could have all of the tests containing their sample come back positive. The sample labeled $1$ would only be in one test because it would only have one digit which was $1$. That test would come back positive about half the time (whenever the sick person had an odd numbered label). This problem gets softened out if we use enough tests that we can make sure everyones test array is the same size. But as long as each test array is a _distinct collection_ of tests, we can gain information about each individual person even though each test we ran were on pools of people.
+
+This means that what we care about is the number of _distinct collections_, rather than the number of tests. That is great, because the number of distinct collections which are subsets of some set goes up way faster than the size of the set. Imagine a card game where you draw a hand of 5 cards. Even though there are only $52$ cards there are $2,598,960$ distinct hands that you might draw.
 
 ### A Concrete Example
 
-* A __batch__ is the whole collection of tests and people we will examine at once.
-* A __pool__ is the group of people whose sample was applied to a specific test.
-* A __test array__ is the group of tests containing some of a given persons sample.
-  * A test array is considered positive if every test in the array is positive.
-  * Each test array will contain 3 tests. I don't know for sure how many tests we can get out of a single sample, but probably not a whole lot.
+To show how much we can get out of collections of tests rather than individual tests, lets assume each test array will contain 3 tests. I don't know for sure how many tests we can get out of a single sample, but probably not a whole lot.
 
-We assume that if someone is sick they will have a positive test array. What we want to know is how likely it is that someone who isn't sick will have a positive test array.
+We assume that if someone is sick they will have a positive test array. What we want to know is how likely it is that someone who is not sick will have a positive test array.
 
-The probability that one test is positive is the probability that some other person in that test pool was positive. This is $\Rho(T) = 1 - (1 - b) ^ {n-1}$, where $b$ is the baseline population rate of COVID and $n$ is the number of people in a pool. Then the probability that all of the tests in an array are positive is $\Rho(A) = \Rho(T)^m$, where $m$ is the number of tests in an array; in our case 3.
+The probability that one test is positive ($\Rho(T)$) is the probability that some other person in that test pool was positive. This is $\Rho(T) = 1 - (1 - b) ^ {n-1}$, where $b$ is the baseline population rate of COVID and $n$ is the number of people in a pool. This is also the probability of a false positive under the original pooling method.
 
-<div style={{display: "flex", justifyContent: "center"}}>
-  <VegaLite spec={{
-  "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
-  "description": "The false positive rate of batched testing is significantly lower than with simply pooled tests.",
-  "width": 400,
-  "height": 200,
-  "data": {"sequence": {
-    "start": 0,
-    "stop": 16.1,
-    "step": 0.1,
-    "as": "percent"
-  }},
-  "transform": [
-    {
-      "calculate": "20",
-      "as": "n_tests"
-    },
-    {
-      "calculate": "[5,10,25]",
-      "as": "pool_size"
-    },
-    {
-      "flatten": ["pool_size"]
-    },
-    {
-      "calculate": "3",
-      "as": "array_size"
-    },
-    {
-      "calculate": "1-pow((100-datum.percent)/100, datum.pool_size - 1)",
-      "as": "ppr"
-    },
-    {
-      "calculate": "(pow(datum.ppr, datum.array_size))*100",
-      "as": "par"
-    }
-  ],
-  "mark": "line",
-  "encoding": {
-    "x": {
-      "field": "percent",
-      "type": "quantitative",
-      "title": "Percentage of the Population with COVID"
-    },
-    "y": {
-      "title": "False Positive Rate",
-      "field": "par",
-      "type": "quantitative"
-    },
-    "color": {
-      "field": "pool_size",
-      "title": "Pool Size",
-      "type": "nominal"
-    }
-  }
-}} />
+The probability of a false positive under the new method ($\Rho(A)$) is the probability that all of the tests in an array are positive. $\Rho(A) = \Rho(T)^m$, where $m$ is the number of tests in an array; in our case 3.
+
+<div style={{ display: "flex", justifyContent: "center" }}>
+  <VegaLite
+    spec={{
+      $schema: "https://vega.github.io/schema/vega-lite/v4.json",
+      description:
+        "The false positive rate of the improved testing is significantly lower than with simply pooled tests.",
+      data: {
+        sequence: { start: 0, stop: 16.1, step: 0.1, as: "percent" },
+      },
+      transform: [
+        { calculate: "[5,10,25]", as: "pool_size" },
+        { flatten: ["pool_size"] },
+        { calculate: "3", as: "array_size" },
+        {
+          calculate:
+            "100-pow((100-datum.percent)/100, datum.pool_size - 1) * 100",
+          as: "P(T)",
+        },
+        {
+          calculate: "(pow(datum['P(T)'] / 100, datum.array_size))*100",
+          as: "P(A)",
+        },
+      ],
+      hconcat: [
+        {
+          mark: "line",
+          encoding: {
+            x: {
+              field: "percent",
+              type: "quantitative",
+              title: "Percentage of the Population with COVID",
+            },
+            y: {
+              field: "P(T)",
+              type: "quantitative",
+            },
+            color: {
+              field: "pool_size",
+              title: "Pool Size",
+              type: "nominal",
+            },
+          },
+        },
+        {
+          mark: "line",
+          encoding: {
+            x: {
+              field: "percent",
+              type: "quantitative",
+            },
+            y: {
+              field: "P(A)",
+              type: "quantitative",
+            },
+            color: {
+              field: "pool_size",
+              title: "Pool Size",
+              type: "nominal",
+            },
+          },
+        },
+      ],
+    }}
+  />
 </div>
 
-_The number of people, the number of tests, and the size of a test array all affect this curve. Click on the three dots to open in a graph editor so you can see and change my assumptions._
+_The probability of a false positive in a simple pooled test is $\Rho(T) = 1 - (1-x)^{n-1}$. In this modified procedure the probability of a false positive is $\Rho(a) = Rho(T)^m$._
 
-This batched strategy looks way better than the simple pooled tests, because we're able to get more information out of each test by considering the information from the whole test array. However, the assumption that the tests are independent is not quite right. It's possible that person $A$ and person $B$ have two tests in common rather than just one. If we increase the number of people in a batch and the number of tests in a batch at the same rate, the assumption becomes steadily closer to true, but the false positive curve doesn't change. We can pick a scale based on what is maneagable and what makes the false positive rate low enough to feel safe.
+This batched strategy looks way better than the simple pooled tests, because we are able to get more information out of each test by considering the information from the whole test array. It also does not have to use any more tests, because the number of distinct collections will always be large compared to the number of tests. The tradeoff is that we need to use several tests at once to be able to talk about collections. This means larger batches, but the same ratio of tests to people.
 
 ### In The Real World
 
-So far we've been assuming a miraculous, ideal test which has no false negatives and no false positives. Because a test array isn't considered positive unless all of the tests contained in it are positive, false positives on the underlying tests aren't too much of a problem, but false negatives could be. If these tests mean that more people who are sick think that they are healthy, that could be an issue. Especially because this method would be most useful where the prevalence of COVID is too high for traditional test pooling, false negatives are a concern. However, there are a few things that protect us from this.
+So far we've been assuming a miraculous, ideal test which has no false negatives and no false positives. Because a test array is not considered positive unless all of the tests contained in it are positive, false positives on the underlying tests are not a problem. False negatives could be a concern, especially because this method would be most useful where the prevalence of COVID is too high for traditional test pooling. However, there are a few things that protect us from this.
 
-Our test arrays are fairly small. The false negative rate of an array will be $\beta^n$, where $n$ is the size of the array and $\beta$ is the false negative rate of the underlying test. The smaller our test array is, the less we increase the false negative rate.
+Our test arrays are fairly small. The false negative rate of an array will be $\beta^m$, where $m$ is the size of the array and $\beta$ is the false negative rate of the underlying test. The smaller our test array is, the less we increase the false negative rate.
 
 In a case where we were really concerned, we could control the false negative rate further by changing what we considered positive out of a test array. We could say that an array was positive if a majority of the tests in the array were positive. This would prevent a single false negative from making the entire array come back negative, so that it would be easier to catch. This would mean increasing the false positive rate of the batching system as a whole, but we can control for that by running a few more tests per batch while still getting major reductions in the false negative rate.
 
