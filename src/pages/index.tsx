@@ -2,9 +2,9 @@ import React from "react";
 import { Link } from "gatsby";
 
 import Layout from "../components/layout";
-import Image from "../components/image";
 import SEO from "../components/seo";
 import usePostsList from "../hooks/usePostsList";
+import { css } from "@emotion/core";
 
 const IndexPage = () => {
   const posts = usePostsList();
@@ -19,9 +19,18 @@ const IndexPage = () => {
             ({ date: a }, { date: b }) =>
               a.getUTCMilliseconds() - b.getUTCMilliseconds()
           )
-          .map(({ title, slug }) => (
-            <li key={slug}>
-              <Link to={slug}>{title}</Link>
+          .map(({ title, slug, excerpt }) => (
+            <li key={slug} css={css`list-style: none;`}>
+              <Link to={slug} css={css`
+                color: black;
+                text-decoration: none;
+                :hover>h2 {
+                  text-decoration: underline;
+                }
+              `}>
+                <h2>{title}</h2>
+                <p>{excerpt}</p>
+              </Link>
             </li>
           ))}
       </ul>

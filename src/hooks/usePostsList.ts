@@ -4,6 +4,7 @@ import { useStaticQuery, graphql } from "gatsby"
 type PostDTO = {
     node: {
         slug: string,
+        excerpt: string,
         frontmatter: {
             title: string,
             date: string,
@@ -22,13 +23,15 @@ type Post = {
     date: Date,
     slug: string
     status: 'draft' | 'published'
+    excerpt: string
 }
 
-const formatPostData = ({ node: { slug, frontmatter: { title, date, status } } }: PostDTO): Post => ({
+const formatPostData = ({ node: { excerpt, slug, frontmatter: { title, date, status } } }: PostDTO): Post => ({
     slug,
     title,
     status,
-    date: new Date(date)
+    date: new Date(date),
+    excerpt
 })
 
 export default (): Post[] => {
@@ -38,6 +41,7 @@ export default (): Post[] => {
         edges {
           node {
             slug
+            excerpt(pruneLength: 250, truncate: true)
             frontmatter {
               title
               date
