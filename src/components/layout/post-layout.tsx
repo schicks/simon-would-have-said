@@ -51,6 +51,12 @@ const MDXHeaderStyles = css`
   }
 `;
 
+const IconStyles = css`
+  color: rgba(0, 0, 0, 0.8);
+  margin-right: 3px;
+  margin-bottom: 2px;
+`
+
 const slugify = (s: string): string => s.toLowerCase().split(/[^\w]/).join("-");
 const MDXHeader = (n: 1 | 2 | 3 | 4 | 5 | 6) => (props: {
   children: string;
@@ -63,11 +69,7 @@ const MDXHeader = (n: 1 | 2 | 3 | 4 | 5 | 6) => (props: {
       <FontAwesomeIcon
         icon={faLink}
         size={"xs"}
-        css={css`
-          color: rgba(0, 0, 0, 0.8);
-          margin-right: 3px;
-          margin-bottom: 2px;
-        `}
+        css={IconStyles}
       />
     </a>,
     props.children
