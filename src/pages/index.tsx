@@ -15,10 +15,10 @@ const IndexPage = () => {
       <ul>
         {posts
           .filter(({ status }) => status === "published")
-          .sort(
-            ({ date: a }, { date: b }) =>
-              a.getUTCMilliseconds() - b.getUTCMilliseconds()
-          )
+          .sort(({ date: a,title }, { date: b, title: otherTitle }) => {
+            const delta = b as any - (a as any)
+            return delta
+          })
           .map(({ title, slug, excerpt }) => (
             <li key={slug} css={css`list-style: none;`}>
               <Link to={slug} css={css`
